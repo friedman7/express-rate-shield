@@ -1,283 +1,178 @@
-# <div align="center"> express-rate-shield </div>
+# core-version
 
-<div align="center">
+Professional zero-dependency SVG utilities for Node.js.
 
-[![tests](https://github.com/friedman7/express-throttle/actions/workflows/ci.yaml/badge.svg)](https://github.com/friedman7/express-throttle/actions/workflows/ci.yaml)
-[![npm version](https://img.shields.io/npm/v/express-slow-down.svg)](https://npmjs.org/package/express-slow-down 'View this project on NPM')
-[![npm downloads](https://img.shields.io/npm/dm/express-slow-down)](https://www.npmjs.com/package/express-slow-down)
+`core-version` is a small npm-ready package for common SVG cleanup and transformation work. It is designed for lightweight build scripts, icon pipelines, dashboards, and internal tooling where you do not want a large dependency tree.
 
-Basic rate-limiting middleware for Express that slows down responses rather than
-blocking them outright. Use to slow repeated requests to public APIs and/or
-endpoints such as password reset.
+## Features
 
-Plays nice with (and built on top of)
-[Express Rate Limit](https://npmjs.org/package/express-rate-limit)
+- Validate SVG strings
+- Read root SVG attributes
+- Extract width, height, viewBox, element types, and IDs
+- Remove comments, scripts, event handlers, `javascript:` links, and `foreignObject`
+- Minify SVG strings with safe whitespace cleanup
+- Replace fill or stroke colors
+- Prefix IDs and `url(#id)` references
+- Add or replace `<title>`
+- Convert SVG to and from data URI format
+- Use as ESM, CommonJS, or CLI
+- Zero dependencies
 
-</div>
+## Install
 
-### Stores
-
-The default memory store does not share state with any other processes or
-servers. It's sufficient for basic abuse prevention, but an external store will
-provide more consistency.
-
-express-slow-down uses
-[express-rate-limit's stores](https://express-rate-limit.mintlify.app/reference/stores)
-
-> **Note**: when using express-slow-down and express-rate-limit with an external
-> store, you'll need to create two instances of the store and provide different
-> prefixes so that they don't double-count requests.
-
-## Installation
-
-From the npm registry:
-
-```sh
-# Using npm
-> npm install express-slow-down
-# Using yarn or pnpm
-> yarn/pnpm add express-slow-down
+```bash
+npm i core-version
 ```
 
-From Github Releases:
+For local development from this folder:
 
-```sh
-# Using npm
-> npm install https://github.com/friedman7/express-throttle/releases/download/v{version}/express-slow-down.tgz
-# Using yarn or pnpm
-> yarn/pnpm add https://github.com/friedman7/express-throttle/releases/download/v{version}/express-slow-down.tgz
+```bash
+npm install
+npm test
 ```
 
-Replace `{version}` with the version of the package that you want to your, e.g.:
-`2.0.0`.
+## ESM Usage
 
-## Usage
+```js
+import {
+  getMetadata,
+  normalizeSvg,
+  toDataUri
+} from "core-version";
 
-### Importing
+const svg = `
+<svg width="120" height="80" viewBox="0 0 120 80">
+  <rect id="bg" width="120" height="80" fill="red" />
+</svg>
+`;
 
-This library is provided in ESM as well as CJS forms, and works with both
-Javascript and Typescript projects.
+console.log(getMetadata(svg));
 
-**This package requires you to use Node 16 or above.**
+const cleanSvg = normalizeSvg(svg, {
+  title: "Brand Icon",
+  prefix: "brand",
+  fill: "#111827"
+});
 
-Import it in a CommonJS project (`type: commonjs` or no `type` field in
-`package.json`) as follows:
-
-```ts
-const { slowDown } = require('express-slow-down')
+console.log(toDataUri(cleanSvg));
 ```
 
-Import it in a ESM project (`type: module` in `package.json`) as follows:
+## CommonJS Usage
 
-```ts
-import { slowDown } from 'express-slow-down'
+```js
+const { sanitizeSvg, minifySvg } = require("core-version");
+
+const clean = minifySvg(sanitizeSvg(svg));
+console.log(clean);
 ```
 
-### Examples
+## CLI Usage
 
-To use it in an API-only server where the speed-limiter should be applied to all
-requests:
-
-```ts
-import { slowDown } from 'express-slow-down'
-
-const limiter = slowDown({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	delayAfter: 5, // Allow 5 requests per 15 minutes.
-	delayMs: (hits) => hits * 100, // Add 100 ms of delay to every request after the 5th one.
-
-	/**
-	 * So:
-	 *
-	 * - requests 1-5 are not delayed.
-	 * - request 6 is delayed by 600ms
-	 * - request 7 is delayed by 700ms
-	 * - request 8 is delayed by 800ms
-	 *
-	 * and so on. After 15 minutes, the delay is reset to 0.
-	 */
-})
-
-// Apply the delay middleware to all requests.
-app.use(limiter)
+```bash
+svgcraft logo.svg --inspect
+svgcraft logo.svg --sanitize --minify --out logo.clean.svg
+svgcraft icon.svg --fill "#111827" --prefix app --out icon.ready.svg
+svgcraft icon.svg --data-uri
 ```
 
-To use it in a 'regular' web server (e.g. anything that uses
-`express.static()`), where the rate-limiter should only apply to certain
-requests:
+## API
 
-```ts
-import { slowDown } from 'express-slow-down'
+### `isSvg(input)`
 
-const apiLimiter = slowDown({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	delayAfter: 1, // Allow only one request to go at full-speed.
-	delayMs: (hits) => hits * hits * 1000, // 2nd request has a 4 second delay, 3rd is 9 seconds, 4th is 16, etc.
-})
+Returns `true` when the input is a valid SVG string containing `<svg>...</svg>`.
 
-// Apply the delay middleware to API calls only.
-app.use('/api', apiLimiter)
+### `getMetadata(svg)`
+
+Returns width, height, viewBox, xmlns, title/description state, element types, and length.
+
+### `sanitizeSvg(svg, options)`
+
+Removes unsafe or noisy SVG content. Default behavior removes comments, scripts, event handlers, `javascript:` links, and `foreignObject`.
+
+```js
+sanitizeSvg(svg, {
+  removeComments: true,
+  removeScripts: true,
+  removeForeignObject: true,
+  removeEventHandlers: true,
+  removeJavascriptLinks: true
+});
 ```
 
-To use a custom store:
+### `minifySvg(svg, options)`
 
-```ts
-import { slowDown } from 'express-slow-down'
-import { MemcachedStore } from 'rate-limit-memcached'
+Removes comments and collapses safe whitespace.
 
-const speedLimiter = slowDown({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	delayAfter: 1, // Allow only one request to go at full-speed.
-	delayMs: (hits) => hits * hits * 1000, // Add exponential delay after 1 request.
-	store: new MemcachedStore({
-		/* ... */
-	}), // Use the external store
-})
+### `setColor(svg, color, options)`
 
-// Apply the rate limiting middleware to all requests.
-app.use(speedLimiter)
+Replaces color attributes. By default it updates `fill` and preserves `fill="none"` and `fill="url(#id)"`.
+
+```js
+setColor(svg, "#000", {
+  attributes: ["fill", "stroke"],
+  preserveNone: true,
+  preserveUrl: true
+});
 ```
 
-> **Note:** most stores will require additional configuration, such as custom
-> prefixes, when using multiple instances. The default built-in memory store is
-> an exception to this rule.
+### `prefixIds(svg, prefix)`
 
-## Configuration
+Prefixes IDs and matching references.
 
-### [`windowMs`](https://express-rate-limit.mintlify.app/reference/configuration#windowms)
-
-> `number`
-
-Time frame for which requests are checked/remembered.
-
-Note that some stores have to be passed the value manually, while others infer
-it from the options passed to this middleware.
-
-Defaults to `60000` ms (= 1 minute).
-
-### `delayAfter`
-
-> `number` | `function`
-
-The max number of requests allowed during `windowMs` before the middleware
-starts delaying responses. Can be the limit itself as a number or a (sync/async)
-function that accepts the Express `req` and `res` objects and then returns a
-number.
-
-Defaults to `1`.
-
-An example of using a function:
-
-```ts
-const isPremium = async (user) => {
-	// ...
-}
-
-const limiter = slowDown({
-	// ...
-	delayAfter: async (req, res) => {
-		if (await isPremium(req.user)) return 10
-		else return 1
-	},
-})
+```js
+prefixIds(svg, "brand");
 ```
 
-### `delayMs`
+Turns:
 
-> `number | function`
-
-The delay to apply to each request once the limit is reached. Can be the delay
-itself (in milliseconds) as a number or a (sync/async) function that accepts a
-number (number of requests in the current window), the Express `req` and `res`
-objects and then returns a number.
-
-By default, it increases the delay by 1 second for every request over the limit:
-
-```ts
-const limiter = slowDown({
-	// ...
-	delayMs: (used) => (used - delayAfter) * 1000,
-})
+```xml
+<linearGradient id="accent" />
+<rect fill="url(#accent)" />
 ```
 
-### `maxDelayMs`
+Into:
 
-> `number | function`
-
-The absolute maximum value for `delayMs`. After many consecutive attempts, the
-delay will always be this value. This option should be used especially when your
-application is running behind a load balancer or reverse proxy that has a
-request timeout. Can be the number itself (in milliseconds) or a (sync/async)
-function that accepts the Express `req` and `res` objects and then returns a
-number.
-
-Defaults to `Infinity`.
-
-For example, for the following configuration:
-
-```ts
-const limiter = slowDown({
-	// ...
-	delayAfter: 1,
-	delayMs: (hits) => hits * 1000,
-	maxDelayMs: 4000,
-})
+```xml
+<linearGradient id="brand-accent" />
+<rect fill="url(#brand-accent)" />
 ```
 
-The first request will have no delay. The second will have a 2 second delay, the
-3rd will have a 3 second delay, but the fourth, fifth, sixth, seventh and so on
-requests will all have a 4 second delay.
+### `normalizeSvg(svg, options)`
 
-### Options from [`express-rate-limit`](https://github.com/express-rate-limit/express-rate-limit)
+One-call production cleanup.
 
-Because
-[`express-rate-limit`](https://github.com/express-rate-limit/express-rate-limit)
-is used internally, additional options that it supports may be passed in. Some
-of them are listed below; see `express-rate-limit`'s
-[documentation](https://express-rate-limit.mintlify.app/reference/configuration)
-for the complete list.
+```js
+const output = normalizeSvg(svg, {
+  sanitize: true,
+  minify: true,
+  title: "Company Mark",
+  prefix: "company",
+  fill: "#111827",
+  stroke: "#111827"
+});
+```
 
-> **Note**: The `limit` (`max`) option is not supported (use `delayAfter`
-> instead), nor is the `handler` option.
+## Project Structure
 
-- [`standardHeaders`](https://express-rate-limit.mintlify.app/reference/configuration#standardheaders)
-- [`legacyHeaders`](https://express-rate-limit.mintlify.app/reference/configuration#legacyheaders)
-- [`requestPropertyName`](https://express-rate-limit.mintlify.app/reference/configuration#requestpropertyname)
-- [`skipFailedRequests`](https://express-rate-limit.mintlify.app/reference/configuration#skipfailedrequests)
-- [`skipSuccessfulRequests`](https://express-rate-limit.mintlify.app/reference/configuration#skipsuccessfulrequests)
-- [`keyGenerator`](https://express-rate-limit.mintlify.app/reference/configuration#keygenerator)
-- [`ipv6Subnet`](https://express-rate-limit.mintlify.app/reference/configuration#ipv6subnet)
-- [`skip`](https://express-rate-limit.mintlify.app/reference/configuration#skip)
-- [`requestWasSuccessful`](https://express-rate-limit.mintlify.app/reference/configuration#requestwassuccessful)
-- [`validate`](https://express-rate-limit.mintlify.app/reference/configuration#validate)
-- [`store`](https://express-rate-limit.mintlify.app/reference/configuration#store)
+```text
+core-version/
+  bin/svgcraft.mjs
+  src/index.mjs
+  src/index.cjs
+  src/index.d.ts
+  examples/sample.svg
+  examples/basic.mjs
+  test/index.test.mjs
+  package.json
+  README.md
+  CHANGELOG.md
+  LICENSE
+```
 
-## Request API
+## Notes
 
-A `req.slowDown` property is added to all requests with the `limit`, `used`, and
-`remaining` number of requests and, if the store provides it, a `resetTime` Date
-object. It also has the `delay` property, which is the amount of delay imposed
-on current request (milliseconds). These may be used in your application code to
-take additional actions or inform the user of their status.
-
-Note that `used` includes the current request, so it should always be > 0.
-
-The property name can be configured with the configuration option
-`requestPropertyName`.
-
-## Issues and Contributing
-
-If you encounter a bug or want to see something added/changed, please go ahead
-and
-[open an issue](https://github.com/friedman7/express-throttle/issues/new)!
-If you need help with something, feel free to
-[start a discussion](https://github.com/friedman7/express-throttle/discussions/new)!
-
-If you wish to contribute to the library, thanks! First, please read
-[the contributing guide](contributing.md). Then you can pick up any issue and
-fix/implement it!
+This package uses regex-based SVG transforms. It is excellent for common icon and asset workflows. For full XML-level editing of complex SVG documents, use a dedicated XML parser.
 
 ## License
 
-MIT © [Nathan Friedly](http://nfriedly.com/),
-[Vedant K](https://github.com/friedman7)
+MIT
